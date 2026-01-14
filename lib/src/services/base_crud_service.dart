@@ -19,7 +19,7 @@ abstract class BaseCrudService<M extends Jsonable> extends BaseService {
 
   /// Returns a list with all items batch fetched at once.
   Future<List<M>> getFullList({
-    int batch = 500,
+    int batch = 1000,
     String? expand,
     String? filter,
     String? sort,

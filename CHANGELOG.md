@@ -1,3 +1,8 @@
+## 0.23.2
+
+- Updated the default `getFullList()` batch size to 1000 for consistency with the v0.23+ API limits.
+
+
 ## 0.23.1
 
 - Fixed a bug with the "all-in-one" OAuth2 flow that prevented successfully authenticating second time after a failed/canceled attempt ([#76](https://github.com/pocketbase/dart-sdk/issues/76)).

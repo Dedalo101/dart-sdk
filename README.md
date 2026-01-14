@@ -286,7 +286,7 @@ If that's  not feasible, you can always fallback to the "Manual code exchange" O
 🔓 pb.collection(collectionIdOrName).getList({page = 1, perPage = 30, filter?, sort?, expand?, fields?, query, headers});
 
 // Returns a list with all records batch fetched at once.
-🔓 pb.collection(collectionIdOrName).getFullList({batch = 100, filter?, sort?, expand?, fields?, query, headers});
+🔓 pb.collection(collectionIdOrName).getFullList({batch = 1000, filter?, sort?, expand?, fields?, query, headers});
 
 // Returns the first found record matching the specified filter.
 🔓 pb.collection(collectionIdOrName).getFirstListItem(filter, {expand?, fields?, query, headers});
