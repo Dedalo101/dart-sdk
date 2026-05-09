@@ -20,6 +20,7 @@ class RealtimeService extends BaseService {
   SseClient? _sse;
   String _clientId = "";
   final _subscriptions = <String, List<SubscriptionFunc>>{};
+  List<String> _lastSentTopics = [];
 
   /// Returns the established SSE connection client id (if any).
   String get clientId => _clientId;
@@ -92,7 +93,7 @@ class RealtimeService extends BaseService {
     }
     _subscriptions[key]?.add(listener);
 
-    // start a new sse connection
+    // start a new SSE connection
     if (_sse == null) {
       await _connect();
     } else if (_clientId.isNotEmpty && _subscriptions[key]?.length == 1) {
@@ -113,11 +114,9 @@ class RealtimeService extends BaseService {
   ///
   /// This method is no-op if there are no active subscriptions.
   ///
-  /// The related sse connection will be autoclosed if after the
+  /// The related SSE connection will be autoclosed if after the
   /// unsubscribe operation there are no active subscriptions left.
   Future<void> unsubscribe([String topic = ""]) async {
-    var needToSubmit = false;
-
     if (topic.isEmpty) {
       // remove all subscriptions
       _subscriptions.clear();
@@ -126,19 +125,10 @@ class RealtimeService extends BaseService {
 
       for (final key in subs.keys) {
         _subscriptions.remove(key);
-        needToSubmit = true;
       }
     }
 
-    // no other subscriptions -> close the sse connection
-    if (!_hasNonEmptyTopic()) {
-      return _disconnect();
-    }
-
-    // otherwise - notify the server about the subscription changes
-    if (_clientId.isNotEmpty && needToSubmit) {
-      return _submitSubscriptions();
-    }
+    return _submitSubscriptions();
   }
 
   /// Unsubscribe from all subscription listeners starting with
@@ -147,31 +137,16 @@ class RealtimeService extends BaseService {
   /// This method is no-op if there are no active subscriptions
   /// with the specified topic prefix.
   ///
-  /// The related sse connection will be autoclosed if after the
+  /// The related SSE connection will be autoclosed if after the
   /// unsubscribe operation there are no active subscriptions left.
   Future<void> unsubscribeByPrefix(String topicPrefix) async {
-    final beforeLength = _subscriptions.length;
-
     // remove matching subscriptions
     _subscriptions.removeWhere((key, func) {
       // "?" so that it can be used as end delimiter for the prefix
       return "$key?".startsWith(topicPrefix);
     });
 
-    // no changes
-    if (beforeLength == _subscriptions.length) {
-      return;
-    }
-
-    // no other subscriptions -> close the sse connection
-    if (!_hasNonEmptyTopic()) {
-      return _disconnect();
-    }
-
-    // otherwise - notify the server about the subscription changes
-    if (_clientId.isNotEmpty) {
-      return _submitSubscriptions();
-    }
+    return _submitSubscriptions();
   }
 
   /// Unsubscribe from all subscriptions matching the specified topic
@@ -180,14 +155,12 @@ class RealtimeService extends BaseService {
   /// This method is no-op if there are no active subscription with
   /// the specified topic and listener.
   ///
-  /// The related sse connection will be autoclosed if after the
+  /// The related SSE connection will be autoclosed if after the
   /// unsubscribe operation there are no active subscriptions left.
   Future<void> unsubscribeByTopicAndListener(
     String topic,
     SubscriptionFunc listener,
   ) async {
-    var needToSubmit = false;
-
     final subs = _getSubscriptionsByTopic(topic);
 
     for (final key in subs.keys) {
@@ -195,33 +168,10 @@ class RealtimeService extends BaseService {
         continue; // nothing to unsubscribe from
       }
 
-      final beforeLength = _subscriptions[key]?.length ?? 0;
-
       _subscriptions[key]?.removeWhere((fn) => fn == listener);
-
-      final afterLength = _subscriptions[key]?.length ?? 0;
-
-      // no changes
-      if (beforeLength == afterLength) {
-        continue;
-      }
-
-      // mark for subscriptions change submit if there are no other listeners
-      if (!needToSubmit && afterLength == 0) {
-        needToSubmit = true;
-      }
     }
 
-    // no other subscriptions -> close the sse connection
-    if (!_hasNonEmptyTopic()) {
-      return _disconnect();
-    }
-
-    // otherwise - notify the server about the subscription changes
-    // (if there are no other subscriptions in the topic)
-    if (_clientId.isNotEmpty && needToSubmit) {
-      return _submitSubscriptions();
-    }
+    return _submitSubscriptions();
   }
 
   Map<String, List<SubscriptionFunc>> _getSubscriptionsByTopic(String topic) {
@@ -239,20 +189,84 @@ class RealtimeService extends BaseService {
     return result;
   }
 
-  bool _hasNonEmptyTopic() {
+  bool _allTopicsAreEmpty() {
     for (final key in _subscriptions.keys) {
       if (_subscriptions[key]?.isNotEmpty ?? false) {
-        return true; // has at least one listener
+        return false; // has at least one listener
+      }
+    }
+
+    return true;
+  }
+
+  bool _hasUnsentTopics() {
+    final currentTopics = _subscriptions.keys.toList();
+
+    if (currentTopics.length != _lastSentTopics.length) {
+      return true;
+    }
+
+    for (final topic in currentTopics) {
+      if (!_lastSentTopics.contains(topic)) {
+        return true;
       }
     }
 
     return false;
   }
 
+  void _drainCompleters(List<Completer<void>> completers, [Object? err]) {
+    for (final completer in completers) {
+      if (completer.isCompleted) {
+        continue;
+      }
+
+      if (err != null) {
+        completer.completeError(err);
+      } else {
+        completer.complete();
+      }
+    }
+
+    completers.clear();
+  }
+
+  // Disconnect/Connect
+  // -----------------------------------------------------------------
+
+  void _disconnect() {
+    _sse?.close();
+    _sse = null;
+    _clientId = "";
+    _lastSentTopics.clear();
+  }
+
+  final _connectCompleters = <Completer<void>>[];
+
   Future<void> _connect() {
     _disconnect();
 
     final completer = Completer<void>();
+
+    _connectCompleters.add(completer);
+
+    if (_connectCompleters.length == 1) {
+      Future(_finishConnectCompleters);
+    }
+
+    return completer.future;
+  }
+
+  void _finishConnectCompleters() {
+    if (_connectCompleters.isEmpty) {
+      return;
+    }
+
+    // subscribed and then immediately unsubscribed
+    if (_allTopicsAreEmpty()) {
+      _drainCompleters(_connectCompleters);
+      return;
+    }
 
     final url = client.buildURL("/api/realtime").toString();
 
@@ -266,10 +280,10 @@ class RealtimeService extends BaseService {
 
         _disconnect();
 
-        if (!completer.isCompleted) {
-          completer
-              .completeError(StateError("failed to establish SSE connection"));
-        }
+        _drainCompleters(
+          _connectCompleters,
+          StateError("failed to establish SSE connection"),
+        );
       },
       onError: (err) {
         if (_clientId.isNotEmpty && onDisconnect != null) {
@@ -294,40 +308,93 @@ class RealtimeService extends BaseService {
     _sse?.onMessage.where((msg) => msg.event == "PB_CONNECT").listen((
       msg,
     ) async {
+      _lastSentTopics.clear();
+
       _clientId = msg.id;
+
       await _submitSubscriptions();
 
-      if (!completer.isCompleted) {
-        completer.complete();
-      }
+      _drainCompleters(_connectCompleters);
     }, onError: (dynamic err) {
       _disconnect();
 
-      if (!completer.isCompleted) {
-        completer.completeError(
-          err is Object
-              ? err
-              : StateError("failed to establish SSE connection"),
-        );
-      }
+      _drainCompleters(
+        _connectCompleters,
+        err is Object ? err : StateError("failed to establish SSE connection"),
+      );
     });
+  }
+
+  // Subscriptions send
+  // -----------------------------------------------------------------
+
+  final _subscriptionCompleters = <Completer<void>>[];
+  bool _isProcessingSubscriptionCompleters = false;
+
+  Future<void> _submitSubscriptions() {
+    final completer = Completer<void>();
+
+    _subscriptionCompleters.add(completer);
+
+    if (_subscriptionCompleters.length == 1) {
+      Future(_finishSubscriptionCompleters);
+    }
 
     return completer.future;
   }
 
-  void _disconnect() {
-    _sse?.close();
-    _sse = null;
-    _clientId = "";
+  Future<void> _finishSubscriptionCompleters() async {
+    if (_isProcessingSubscriptionCompleters ||
+        _subscriptionCompleters.isEmpty) {
+      return;
+    }
+
+    // clone and reset the list to allow next items to queue
+    final completers = List<Completer<void>>.from(_subscriptionCompleters);
+    _subscriptionCompleters.clear();
+
+    _isProcessingSubscriptionCompleters = true;
+
+    try {
+      await _sendSubscriptions();
+
+      _drainCompleters(completers);
+    } catch (err) {
+      _drainCompleters(completers, err);
+    } finally {
+      _isProcessingSubscriptionCompleters = false;
+
+      // another request came in while awaiting above
+      if (_subscriptionCompleters.isNotEmpty) {
+        await _finishSubscriptionCompleters();
+      }
+    }
   }
 
-  Future<void> _submitSubscriptions() {
+  Future<void> _sendSubscriptions() async {
+    // not initialized yet or connection closed
+    if (_clientId.isEmpty) {
+      return;
+    }
+
+    // no subscriptions -> close the SSE connection
+    if (_allTopicsAreEmpty()) {
+      return _disconnect();
+    }
+
+    // no change
+    if (!_hasUnsentTopics()) {
+      return;
+    }
+
+    _lastSentTopics = _subscriptions.keys.toList();
+
     return client.send(
       "/api/realtime",
       method: "POST",
       body: {
         "clientId": _clientId,
-        "subscriptions": _subscriptions.keys.toList(),
+        "subscriptions": _lastSentTopics,
       },
     );
   }

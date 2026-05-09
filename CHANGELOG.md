@@ -1,3 +1,8 @@
+## 0.23.3
+
+- Optimized realtime `subscribe`/`unsubscribe` calls to minimize async errors ([pocketbase#7684](https://github.com/pocketbase/pocketbase/issues/7684)).
+
+
 ## 0.23.2
 
 - Updated the default `getFullList()` batch size to 1000 for consistency with the v0.23+ API limits.
