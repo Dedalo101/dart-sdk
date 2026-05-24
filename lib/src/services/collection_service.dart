@@ -1,5 +1,7 @@
 import "../client.dart";
 import "../dtos/collection_model.dart";
+import "../dtos/configurable_oauth2_provider.dart";
+import "../dtos/record_model.dart";
 import "base_crud_service.dart";
 
 /// The service that handles the **Collection APIs**.
@@ -41,17 +43,31 @@ class CollectionService extends BaseCrudService<CollectionModel> {
     );
   }
 
+  /// Deletes all records associated with the specified collection.
+  Future<void> truncate(
+    String collectionIdOrName, {
+    Map<String, dynamic> body = const {},
+    Map<String, dynamic> query = const {},
+    Map<String, String> headers = const {},
+  }) {
+    return client.send(
+      "$baseCrudPath/${Uri.encodeComponent(collectionIdOrName)}/truncate",
+      method: "DELETE",
+      body: body,
+      query: query,
+      headers: headers,
+    );
+  }
+
   /// Returns type indexed map with scaffolded collection models
   /// populated with their default field values.
   Future<Map<String, CollectionModel>> getScaffolds({
-    Map<String, dynamic> body = const {},
     Map<String, dynamic> query = const {},
     Map<String, String> headers = const {},
   }) {
     return client
         .send<Map<String, dynamic>>(
       "$baseCrudPath/meta/scaffolds",
-      body: body,
       query: query,
       headers: headers,
     )
@@ -67,19 +83,45 @@ class CollectionService extends BaseCrudService<CollectionModel> {
     });
   }
 
-  /// Deletes all records associated with the specified collection.
-  Future<void> truncate(
-    String collectionIdOrName, {
+  /// Returns a list with all configurable OAuth2 providers.
+  Future<List<ConfigurableOAuth2Provider>> getAllOAuth2Providers({
+    Map<String, dynamic> query = const {},
+    Map<String, String> headers = const {},
+  }) {
+    return client
+        .send<List<dynamic>>(
+          "$baseCrudPath/meta/oauth2-providers",
+          query: query,
+          headers: headers,
+        )
+        .then((data) => data
+            .map((item) => ConfigurableOAuth2Provider.fromJson(
+                item as Map<String, dynamic>? ?? {}))
+            .toList());
+  }
+
+  /// Executes the specified view query and returns a sample of the
+  /// resulting records.
+  Future<List<RecordModel>> dryRunViewQuery(
+    String viewQuery, {
     Map<String, dynamic> body = const {},
     Map<String, dynamic> query = const {},
     Map<String, String> headers = const {},
   }) {
-    return client.send(
-      "$baseCrudPath/${Uri.encodeComponent(collectionIdOrName)}/truncate",
-      method: "DELETE",
-      body: body,
-      query: query,
-      headers: headers,
-    );
+    final enrichedBody = Map<String, dynamic>.of(body);
+    enrichedBody["query"] = viewQuery;
+
+    return client
+        .send<List<dynamic>>(
+          "$baseCrudPath/meta/dry-run-view",
+          method: "POST",
+          body: enrichedBody,
+          query: query,
+          headers: headers,
+        )
+        .then((data) => data
+            .map((item) =>
+                RecordModel.fromJson(item as Map<String, dynamic>? ?? {}))
+            .toList());
   }
 }

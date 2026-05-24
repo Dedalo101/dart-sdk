@@ -413,7 +413,13 @@ If that's  not feasible, you can always fallback to the "Manual code exchange" O
 🔐 pb.collections.import(collections, {deleteMissing=false, query, body, headers});
 
 // Returns type indexed map with scaffolded collection models populated with their default field values.
-🔐 pb.collections.getScaffolds({query, body, headers});
+🔐 pb.collections.getScaffolds({query, headers});
+
+// Returns a list with all configurable OAuth2 providers.
+🔐 pb.collections.getAllOAuth2Providers({query, headers});
+
+// Executes the specified view query and returns a sample of the resulting records.
+🔐 pb.collections.dryRunViewQuery(viewQuery, {query, body, headers});
 ```
 
 ---
@@ -516,7 +522,16 @@ pb.realtime.onDisconnect = (subscriptions) { ... }
 🔐 pb.crons.getFullList({query, headers});
 
 // Runs the specified cron job.
-🔐 pb.backups.run(jobId, {body, query, headers});
+🔐 pb.crons.run(jobId, {body, query, headers});
+```
+
+---
+
+##### SQLService ([Detailed class reference](https://pub.dev/documentation/pocketbase/latest/pocketbase/SQLService-class.html), [API docs](https://pocketbase.io/docs/api-sql))
+
+```js
+// Runs the specified raw SQL query.
+🔐 pb.sql.run(rawSQL, {body, query, headers});
 ```
 
 ---

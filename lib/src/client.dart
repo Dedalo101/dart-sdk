@@ -17,6 +17,7 @@ import "services/log_service.dart";
 import "services/realtime_service.dart";
 import "services/record_service.dart";
 import "services/settings_service.dart";
+import "services/sql_service.dart";
 
 const bool isWeb = bool.fromEnvironment("dart.library.js_util");
 
@@ -69,6 +70,9 @@ class PocketBase {
   /// The service that handles the **Cron APIs**.
   late final CronService crons;
 
+  /// The service that handles the **SQL APIs**.
+  late final SQLService sql;
+
   /// The underlying http client that will be used to send the request.
   /// This is used primarily for the unit tests.
   late final http.Client Function() httpClientFactory;
@@ -113,6 +117,7 @@ class PocketBase {
     health = HealthService(this);
     backups = BackupService(this);
     crons = CronService(this);
+    sql = SQLService(this);
   }
 
   /// Returns the RecordService associated to the specified collection.

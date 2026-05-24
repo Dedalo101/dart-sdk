@@ -5,7 +5,7 @@ import "base_service.dart";
 /// The service that handles the **Cron APIs**.
 ///
 /// Usually shouldn't be initialized manually and instead
-/// [PocketBase.backups] should be used.
+/// [PocketBase.crons] should be used.
 class CronService extends BaseService {
   CronService(super.client);
 

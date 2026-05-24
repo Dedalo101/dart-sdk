@@ -59,10 +59,42 @@ void main() {
       );
     });
 
+    test("truncate()", () async {
+      final mock = MockClient((request) async {
+        expect(request.method, "DELETE");
+        expect(request.body, jsonEncode({"test_body": 123}));
+        expect(
+          request.url.toString(),
+          "/base/api/collections/test%3D/truncate?a=1&a=2&b=%40demo",
+        );
+        expect(request.headers["test"], "789");
+
+        return http.Response(
+          jsonEncode({"a": 1, "b": false, "c": "test"}),
+          200,
+        );
+      });
+
+      final client = PocketBase("/base", httpClientFactory: () => mock);
+
+      await client.collections.truncate(
+        "test=",
+        query: {
+          "a": ["1", null, 2],
+          "b": "@demo",
+        },
+        body: {
+          "test_body": 123,
+        },
+        headers: {
+          "test": "789",
+        },
+      );
+    });
+
     test("getScaffolds()", () async {
       final mock = MockClient((request) async {
         expect(request.method, "GET");
-        expect(request.body, jsonEncode({"test_body": 123}));
         expect(
           request.url.toString(),
           "/base/api/collections/meta/scaffolds?a=1&a=2&b=%40demo",
@@ -85,9 +117,6 @@ void main() {
           "a": ["1", null, 2],
           "b": "@demo",
         },
-        body: {
-          "test_body": 123,
-        },
         headers: {
           "test": "789",
         },
@@ -97,38 +126,83 @@ void main() {
       expect(result["test1"]?.id, "id1");
       expect(result["test2"]?.id, "id2");
     });
-  });
 
-  test("truncate()", () async {
-    final mock = MockClient((request) async {
-      expect(request.method, "DELETE");
-      expect(request.body, jsonEncode({"test_body": 123}));
-      expect(
-        request.url.toString(),
-        "/base/api/collections/test%3D/truncate?a=1&a=2&b=%40demo",
-      );
-      expect(request.headers["test"], "789");
+    test("getAllOAuth2Providers()", () async {
+      final mock = MockClient((request) async {
+        expect(request.method, "GET");
+        expect(
+          request.url.toString(),
+          "/base/api/collections/meta/oauth2-providers?a=1&a=2&b=%40demo",
+        );
+        expect(request.headers["test"], "789");
 
-      return http.Response(
-        jsonEncode({"a": 1, "b": false, "c": "test"}),
-        200,
+        return http.Response(
+          jsonEncode([
+            ConfigurableOAuth2Provider(name: "p1").toJson(),
+            ConfigurableOAuth2Provider(name: "p2").toJson(),
+          ]),
+          200,
+        );
+      });
+
+      final client = PocketBase("/base", httpClientFactory: () => mock);
+
+      final result = await client.collections.getAllOAuth2Providers(
+        query: {
+          "a": ["1", null, 2],
+          "b": "@demo",
+        },
+        headers: {
+          "test": "789",
+        },
       );
+
+      expect(result.length, 2);
+      expect(result[0].name, "p1");
+      expect(result[1].name, "p2");
     });
 
-    final client = PocketBase("/base", httpClientFactory: () => mock);
+    test("dryRunViewQuery()", () async {
+      final mock = MockClient((request) async {
+        expect(request.method, "POST");
+        expect(
+          request.body,
+          jsonEncode({"test_body": 123, "query": "test_query"}),
+        );
+        expect(
+          request.url.toString(),
+          "/base/api/collections/meta/dry-run-view?a=1&a=2&b=%40demo",
+        );
+        expect(request.headers["test"], "789");
 
-    await client.collections.truncate(
-      "test=",
-      query: {
-        "a": ["1", null, 2],
-        "b": "@demo",
-      },
-      body: {
-        "test_body": 123,
-      },
-      headers: {
-        "test": "789",
-      },
-    );
+        return http.Response(
+          jsonEncode([
+            {"id": 1},
+            {"id": 2},
+          ]),
+          200,
+        );
+      });
+
+      final client = PocketBase("/base", httpClientFactory: () => mock);
+
+      final result = await client.collections.dryRunViewQuery(
+        "test_query",
+        query: {
+          "a": ["1", null, 2],
+          "b": "@demo",
+        },
+        body: {
+          "test_body": 123,
+        },
+        headers: {
+          "test": "789",
+        },
+      );
+
+      expect(result.length, 2);
+      expect(result[0].id, "1");
+      expect(result[1].id, "2");
+    });
   });
 }

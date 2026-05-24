@@ -21,6 +21,7 @@ export "src/dtos/backup_file_info.dart";
 export "src/dtos/batch_result.dart";
 export "src/dtos/collection_field.dart";
 export "src/dtos/collection_model.dart";
+export "src/dtos/configurable_oauth2_provider.dart";
 export "src/dtos/cron_job.dart";
 export "src/dtos/email_template_config.dart";
 export "src/dtos/health_check.dart";
@@ -36,6 +37,7 @@ export "src/dtos/record_auth.dart";
 export "src/dtos/record_model.dart";
 export "src/dtos/record_subscription_event.dart";
 export "src/dtos/result_list.dart";
+export "src/dtos/sql_result.dart";
 export "src/dtos/token_config.dart";
 
 // services (exported mainly for dartdoc - https://github.com/dart-lang/dartdoc/issues/2154)
@@ -50,3 +52,4 @@ export "src/services/log_service.dart";
 export "src/services/realtime_service.dart";
 export "src/services/record_service.dart";
 export "src/services/settings_service.dart";
+export "src/services/sql_service.dart";
